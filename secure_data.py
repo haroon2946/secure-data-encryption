@@ -5,133 +5,130 @@ import time
 from cryptography.fernet import Fernet
 import base64
 
-# initialize session state variables if they don't exist
+# Initialize session state variables if they don't exist
 if 'failed_attempts' not in st.session_state:
     st.session_state.failed_attempts = 0
-if "stored_data" not in st.session_state:
+if 'stored_data' not in st.session_state:
     st.session_state.stored_data = {}
-if "current_page" not in st.session_state:
+if 'current_page' not in st.session_state:
     st.session_state.current_page = "Home"
-if "last_attempt_time" not in st.session_state:
+if 'last_attempt_time' not in st.session_state:
     st.session_state.last_attempt_time = 0
 
-# function to hash passkey
-
+# Function to hash passkey
 def hash_passkey(passkey):
     return hashlib.sha256(passkey.encode()).hexdigest()
 
-# function to generate a key from a passkey (for encryption)  
+# Function to generate a key from passkey (for encryption)
 def generate_key_from_passkey(passkey):
+    # Use the passkey to create a consistent key
+    hashed = hashlib.sha256(passkey.encode()).digest()
+    # Ensure it's valid for Fernet (32 url-safe base64-encoded bytes)
+    return base64.urlsafe_b64encode(hashed[:32])
 
-# use the passkey to create a consistent key
-hashed = hashlib.sha256(passkey.encode()).digest()
-# Ensure its valid for Fernet (32 urlsafe base64-encoded bytes)
-return base64.urlsafe_b64encode(hashed[:32])
-
-# function to encrypt data
+# Function to encrypt data
 def encrypt_data(text, passkey):
     key = generate_key_from_passkey(passkey)
     cipher = Fernet(key)
     return cipher.encrypt(text.encode()).decode()
 
-# function to decrypt data
+# Function to decrypt data
 def decrypt_data(encrypted_text, passkey, data_id):
     try:
-        # check if the passkey matches
+        # Check if the passkey matches
         hashed_passkey = hash_passkey(passkey)
-if data_id in st.session_state.stored_data and st.session_state.stored
-
-# if passkey matches, decrypt the data
-
-
-    key = generate_key_from_passkey(passkey)
-    cipher = Fernet(key)
-    decrypted = cipher.decrypt(encrypted_text.encode()).decode()
-    st.session_state.failed_attempts = 0
-    return decrypted
-    else:
-        # Incorrect failed attempts
-        st.session_state.failed_attempts += 1
-        st.session_state.last_attempt_time = time.time()
-        return None
-   except Exception as e:
-        # IF decryption fails, increment failed attempts
-        st.session_state.failed_attempts += 1
-        st.session_state.last_attempt_time = time.time()
-        return None
-
-        # Function to generate a unique ID for each data entry
-        def generate_data_id():
-            import uuid
-            return str(uuid.uuid4())
-
-        # Function to reset failed attempts
-        def reset_failed_attempts():
+        if data_id in st.session_state.stored_data and st.session_state.stored_data[data_id]["passkey"] == hashed_passkey:
+            # If passkey matches, decrypt the data
+            key = generate_key_from_passkey(passkey)
+            cipher = Fernet(key)
+            decrypted = cipher.decrypt(encrypted_text.encode()).decode()
             st.session_state.failed_attempts = 0
-            
-        # function to change page
-        def change_page(page_name):
-            st.session_state.current_page = page
+            return decrypted
+        else:
+            # Increment failed attempts
+            st.session_state.failed_attempts += 1
+            st.session_state.last_attempt_time = time.time()
+            return None
+    except Exception as e:
+        # If decryption fails, increment failed attempts
+        st.session_state.failed_attempts += 1
+        st.session_state.last_attempt_time = time.time()
+        return None
 
-        # streamlit UI
-        st.title("🔐 Secure Data Encryption System")    
+# Function to generate a unique ID for data
+def generate_data_id():
+    import uuid
+    return str(uuid.uuid4())
 
-        # Navigation
-        menu = ["Home", "Store Data", "Retrieve Data", "Login"]
-        choice = st.sidebar.selectbox("Navigation", menu, index=menu.index(st.session_state.current_page))
+# Function to reset failed attempts
+def reset_failed_attempts():
+    st.session_state.failed_attempts = 0
 
-        # update current page based on selection
-        st.session_state.current_page = choice
+# Function to change page
+def change_page(page):
+    st.session_state.current_page = page
 
-        # check if too many failed attempts
-        if st.session_state.failed_attempts >= 3:
-            st.session_state.current_page = "Login"
-            st.warning("🔐 Too many failed attempts. Reauthorization required.")
+# Streamlit UI
+st.title("🔒 Secure Data Encryption System")
 
-        # Display the current page
-        if st.session_state.current_page == "Home":
-           st.subheader("📅 Welcome to the Secure Data System") 
-           st.write("Use this app to **securely store and retrieve data** using unique passkeys.")
+# Navigation
+menu = ["Home", "Store Data", "Retrieve Data", "Login"]
+choice = st.sidebar.selectbox("Navigation", menu, index=menu.index(st.session_state.current_page))
 
-           col1, col2 = st.columns(2)
-           with col1:
-               if st.button("Store New Data", use_container_width=True):
-                   change_page("Store Data")
-           with col2:
-                if st.button("Retrieve Data", use_container_width=True):
-                   change_page("Retrieve Data")               
+# Update current page based on selection
+st.session_state.current_page = choice
 
-        # display the store data count
-           st.info(f"Currently storing {len(st.session_state.stored_data)} encypted data entries.")
-           
-           elif st.session_state.current_page == "Store Data":
-            st.subheader("🔒 Store New Securely")
-            user_data = st.text_area("Enter Data:")
-            passkey = st.text_input("Enter Passkey:", type="password")
-            confirm_passkey = st.text_input("Confirm Passkey:", type="password")
+# Check if too many failed attempts
+if st.session_state.failed_attempts >= 3:
+    # Force redirect to login page
+    st.session_state.current_page = "Login"
+    st.warning("🔒 Too many failed attempts! Reauthorization required.")
 
-            if st.button("Encrypt and Save"):   
-                if user_data and passkey and confirm_passkey:
-                    if passkey != confirm_passkey:
-                         st.error("⚠️ Passkeys do not match.")
-                    else:
-                    # Generate a unique ID for the data
-                        data_id = generate_data_id()
+# Display current page
+if st.session_state.current_page == "Home":
+    st.subheader("🏠 Welcome to the Secure Data System")
+    st.write("Use this app to **securely store and retrieve data** using unique passkeys.")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Store New Data", use_container_width=True):
+            change_page("Store Data")
+    with col2:
+        if st.button("Retrieve Data", use_container_width=True):
+            change_page("Retrieve Data")
+    
+    # Display stored data count
+    st.info(f"Currently storing {len(st.session_state.stored_data)} encrypted data entries.")
 
-                        # Hash the passkey
-                        hashed_passkey = hash_passkey(passkey) 
+elif st.session_state.current_page == "Store Data":
+    st.subheader("📂 Store Data Securely")
+    user_data = st.text_area("Enter Data:")
+    passkey = st.text_input("Enter Passkey:", type="password")
+    confirm_passkey = st.text_input("Confirm Passkey:", type="password")
 
-                        # Encrypt the data
-                        encrypted_data = encrypt_data(user_data, passkey)
-
-                        # Store the required format
-                        st.session_state.stored_data[data_id] = {
-                            "encrypted_text": encrypted_text,
-                                "passkey": hashed_passkey
+    if st.button("Encrypt & Save"):
+        if user_data and passkey and confirm_passkey:
+            if passkey != confirm_passkey:
+                st.error("⚠️ Passkeys do not match!")
+            else:
+                # Generate a unique ID for this data
+                data_id = generate_data_id()
+                
+                # Hash the passkey
+                hashed_passkey = hash_passkey(passkey)
+                
+                # Encrypt the data
+                encrypted_text = encrypt_data(user_data, passkey)
+                
+                # Store in the required format
+                st.session_state.stored_data[data_id] = {
+                    "encrypted_text": encrypted_text,
+                    "passkey": hashed_passkey
                 }
-                        st.success(f"✅ Data stored securely!")
-
-                        # Display the data ID for retrieval
+                
+                st.success("✅ Data stored securely!")
+                
+                # Display the data ID for retrieval
                 st.code(data_id, language="text")
                 st.info("⚠️ Save this Data ID! You'll need it to retrieve your data.")
         else:
